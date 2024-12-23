@@ -125,17 +125,75 @@ fi
 ZIP_NAME="$PROJECT_DIR/input/dummy"
 if [ $MOUNTED == false ]; then
     if [[ "$URL" == "http"* ]]; then
+        # URL detected
         RANDOMM=$(echo $RANDOM)
-        FILENAME=$(basename "$URL")
-        EXT="${FILENAME##*.}"
-        ACTUAL_ZIP_NAME="$RANDOMM"_FIRMWARE."$EXT"
-        ZIP_NAME="$PROJECT_DIR"/input/"$RANDOMM"_FIRMWARE."$EXT"
-        DOWNLOAD "$URL" "$ZIP_NAME"
-        URL="$ZIP_NAME"
+        EXTENSION=""
+
+        if [[ "$URL" == "https://drive.google.com"* ]]; then
+            # Google Drive
+            FILE_ID=$(echo "$URL" | sed -E 's/.*\/d\/([0-9A-Za-z_-]{33})\/.*/\1/')
+            if [[ -z "$FILE_ID" ]]; then
+                echo "Invalid Google Drive URL"
+                exit 1
+            fi
+            FILENAME="$PROJECT_DIR/input/$RANDOMM_FIRMWARE$EXTENSION"
+            gdown "$FILE_ID" -O "$FILENAME"
+            if [[ $? -ne 0 ]]; then
+                echo "Error downloading from Google Drive"
+                exit 1
+            fi
+            URL="$FILENAME"
+        elif [[ "$URL" == "https://sourceforge.net"* ]]; then
+            # SourceForge
+            CONTENT_DISPOSITION=$(curl -s -I -L "$URL" | grep "Content-Disposition:" | sed -E 's/.*filename="([^"]+)".*/\1/')
+            if [[ -n "$CONTENT_DISPOSITION" ]]; then
+                FILENAME="$PROJECT_DIR/input/$CONTENT_DISPOSITION"
+                EXTENSION=".$(echo "$FILENAME" | awk -F '.' '{print $NF}')"
+            else
+                FILENAME="$PROJECT_DIR/input/$RANDOMM_FIRMWARE$EXTENSION"
+            fi
+            curl -L -o "$FILENAME" "$URL"
+            if [[ $? -ne 0 ]]; then
+                echo "Error downloading from SourceForge"
+                exit 1
+            fi
+            URL="$FILENAME"
+        else
+            # Other URL (HTTP/HTTPS)
+            CONTENT_TYPE=$(curl -s -I "$URL" | grep "Content-Type:" | awk '{print $2}')
+            if [[ "$CONTENT_TYPE" == "application/zip" ]]; then
+                EXTENSION=".zip"
+            elif [[ "$CONTENT_TYPE" == "application/x-gzip" || "$CONTENT_TYPE" == "application/gzip" ]]; then
+                EXTENSION=".tgz"
+            elif [[ "$CONTENT_TYPE" == "application/x-xz" ]]; then
+              EXTENSION=".xz"
+            elif [[ "$CONTENT_TYPE" == "application/octet-stream" ]]; then
+                if [[ "$URL" == *.zip ]]; then
+                    EXTENSION=".zip"
+                elif [[ "$URL" == *.gz ]]; then
+                    EXTENSION=".gz"
+                elif [[ "$URL" == *.xz ]]; then
+                  EXTENSION=".xz"
+                elif [[ "$URL" == *.tgz ]]; then
+                    EXTENSION=".tgz"
+                else
+                    echo "Unable to determine file type from URL, Content-Type: $CONTENT_TYPE"
+                fi
+            else
+                echo "Неизвестный Content-Type: $CONTENT_TYPE"
+            fi
+            FILENAME="$PROJECT_DIR/input/$RANDOMM_FIRMWARE$EXTENSION"
+            wget -L "$URL" -O "$FILENAME"
+            if [[ $? -ne 0 ]]; then
+              echo "File download error"
+              exit 1
+            fi
+            URL="$FILENAME"
+        fi
     fi
     $TOOLS_DIR/Firmware_extractor/extractor.sh "$URL" "$PROJECT_DIR/working" || exit 1
     if [ $CLEAN == true ]; then
-        rm -rf "$ZIP_NAME"
+        rm -rf "$FILENAME"
     fi
     MOUNT "$PROJECT_DIR/working"
     URL="$PROJECT_DIR/working"
