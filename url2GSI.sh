@@ -125,10 +125,11 @@ fi
 ZIP_NAME="$PROJECT_DIR/input/dummy"
 if [ $MOUNTED == false ]; then
     if [[ "$URL" == "http"* ]]; then
-        # URL detected
         RANDOMM=$(echo $RANDOM)
-        ACTUAL_ZIP_NAME="$RANDOMM"_FIRMWARE.tgz
-        ZIP_NAME="$PROJECT_DIR"/input/"$RANDOMM"_FIRMWARE.tgz
+        FILENAME=$(basename "$URL")
+        EXT="${FILENAME##*.}"
+        ACTUAL_ZIP_NAME="$RANDOMM"_FIRMWARE."$EXT"
+        ZIP_NAME="$PROJECT_DIR"/input/"$RANDOMM"_FIRMWARE."$EXT"
         DOWNLOAD "$URL" "$ZIP_NAME"
         URL="$ZIP_NAME"
     fi
@@ -138,7 +139,6 @@ if [ $MOUNTED == false ]; then
     fi
     MOUNT "$PROJECT_DIR/working"
     URL="$PROJECT_DIR/working"
-    
 fi
 
 if [ $AB == true ]; then
